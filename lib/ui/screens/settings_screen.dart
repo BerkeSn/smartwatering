@@ -100,6 +100,10 @@ class _SettingsScreenState
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
         backgroundColor: const Color(0xFF1ABC9C),
         title: const Text(
           'Ayarlar',

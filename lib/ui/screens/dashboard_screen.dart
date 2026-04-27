@@ -308,7 +308,7 @@ class _DashboardScreenState
       ),
       onPressed: () {
         if (!isActive && targetPage != null) {
-          Navigator.pushReplacement(
+          Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => targetPage,
