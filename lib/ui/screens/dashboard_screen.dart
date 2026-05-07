@@ -33,6 +33,8 @@ class _DashboardScreenState
   bool _hasError = false;
   Timer? _updateTimer;
   bool _isWatering = false;
+  bool _isFirstDataLoaded =
+      false; // İlk veri grafiğe eklendi mi?
 
   @override
   void initState() {
@@ -50,6 +52,13 @@ class _DashboardScreenState
               _isLoading = false;
 
               // _addPointToChart(data.soilMoisture);
+
+              if (!_isFirstDataLoaded) {
+                _isFirstDataLoaded = true;
+                _addPointToChart(
+                  data.soilMoisture,
+                );
+              }
             });
           },
           onError: (error) {
