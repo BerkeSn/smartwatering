@@ -24,8 +24,7 @@ class _DashboardScreenState
       BlynkApiService();
 
   List<FlSpot> liveMoistureData = [];
-  DateTime?
-  _startTime;
+  DateTime? _startTime;
 
   StreamSubscription<PlantData>?
   _plantDataSubscription;
@@ -33,6 +32,7 @@ class _DashboardScreenState
   bool _isLoading = true;
   bool _hasError = false;
   Timer? _updateTimer;
+  bool _isWatering = false;
 
   @override
   void initState() {
@@ -49,7 +49,7 @@ class _DashboardScreenState
               _currentData = data;
               _isLoading = false;
 
-              _addPointToChart(data.soilMoisture);
+              // _addPointToChart(data.soilMoisture);
             });
           },
           onError: (error) {
@@ -123,22 +123,53 @@ class _DashboardScreenState
             ),
           ],
         ),
+        /*
         actions: [
           IconButton(
-            icon: const Icon(
-              Icons.battery_charging_full,
+            icon: Icon(
+              _isWatering ? Icons.opacity : Icons.water_drop,
               color: Colors.white,
             ),
-            onPressed: () {},
-          ),
-          IconButton(
-            icon: const Icon(
-              Icons.crop_square,
-              color: Colors.white,
-            ),
-            onPressed: () {},
+            onPressed: _isWatering
+                ? null
+                : () async {
+                    setState(() {
+                      _isWatering = true;
+                    });
+
+                    try {
+                      SharedPreferences prefs = await SharedPreferences.getInstance();
+                      int waterAmount = prefs.getInt('water_amount') ?? 250;
+
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Sisteme $waterAmount mL su verme emri gönderildi!'),
+                            backgroundColor: const Color(0xFF1ABC9C),
+                            duration: const Duration(seconds: 3),
+                          ),
+                        );
+                      }
+
+                      await _plantService.sendWaterCommand(waterAmount);
+
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
+                        );
+                      }
+                    } finally {
+                      if (context.mounted) {
+                        setState(() {
+                          _isWatering = false;
+                        });
+                      }
+                    }
+                  },
           ),
         ],
+          */
       ),
       body: Column(
         children: [
@@ -250,43 +281,67 @@ class _DashboardScreenState
         const SizedBox(height: 20),
         ElevatedButton(
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(
-              0xFF1ABC9C,
-            ),
+            backgroundColor: _isWatering
+                ? Colors.grey
+                : const Color(0xFF1ABC9C),
             padding: const EdgeInsets.all(15),
           ),
-          onPressed: () async {
-            SharedPreferences prefs =
-                await SharedPreferences.getInstance();
-            int waterAmount =
-                prefs.getInt('water_amount') ??
-                250;
+          onPressed: _isWatering
+              ? null // Eğer zaten sulanıyorsa butonu devre dışı bırak
+              : () async {
+                  setState(() {
+                    _isWatering = true;
+                  });
 
-            await _plantService.sendWaterCommand(
-              waterAmount,
-            );
+                  SharedPreferences prefs =
+                      await SharedPreferences.getInstance();
+                  int waterAmount =
+                      prefs.getInt(
+                        'water_amount',
+                      ) ??
+                      250;
 
-            if (!context.mounted) return;
+                  // Snackbar'ı hemen göster
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Sisteme $waterAmount mL su verme emri gönderildi!',
+                        ),
+                        backgroundColor:
+                            const Color(
+                              0xFF1ABC9C,
+                            ),
+                        duration: const Duration(
+                          seconds: 3,
+                        ),
+                      ),
+                    );
+                  }
 
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(
-              SnackBar(
-                content: Text(
-                  'Sisteme $waterAmount mL su verme emri gönderildi!',
-                ),
-                backgroundColor: const Color(
-                  0xFF1ABC9C,
-                ),
-                duration: const Duration(
-                  seconds: 3,
-                ),
-              ),
-            );
-          },
-          child: const Text(
-            'BİTKİYİ SULA',
-            style: TextStyle(color: Colors.white),
+                  // Sulama simülasyonunu başlat
+                  await _plantService
+                      .sendWaterCommand(
+                        waterAmount,
+                      );
+
+                  // İşlem bitince butonu tekrar aktif et
+                  if (context.mounted) {
+                    setState(() {
+                      _isWatering = false;
+                    });
+                  }
+                },
+          child: Text(
+            _isWatering
+                ? 'SULANIYOR...'
+                : 'BİTKİYİ SULA',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
       ],

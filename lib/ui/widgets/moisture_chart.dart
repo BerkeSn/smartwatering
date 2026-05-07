@@ -10,55 +10,53 @@ class MoistureChart extends StatelessWidget {
   });
 
   String _formatTime(int totalSeconds) {
-    if (totalSeconds < 60) {
+    if (totalSeconds == 0) return '0s';
+    if (totalSeconds < 60)
       return '${totalSeconds}sn';
-    } else if (totalSeconds < 3600) {
-      int m = totalSeconds ~/ 60;
-      int s = totalSeconds % 60;
-      return s == 0
-          ? '${m}dk'
-          : '${m}dk ${s}sn';
-    } else {
-      int h = totalSeconds ~/ 3600;
-      int m = (totalSeconds % 3600) ~/ 60;
-      return m == 0
-          ? '${h}sa'
-          : '${h}sa ${m}dk';
-    }
+
+    int m = totalSeconds ~/ 60;
+    int s = totalSeconds % 60;
+
+    // Sadece tam dakikalarda etiket basarsak çakışma azalır
+    if (s == 0) return '${m}dk';
+    return ''; // Saniyeli değerleri boş dönersek grafik daha temiz görünür
   }
 
   @override
   Widget build(BuildContext context) {
+    // 1. GENİŞLİK HESABI (Her 60 saniye için 150 pixel yer ayırıyoruz)
+    // Bu sayede grafik süre uzadıkça sağa doğru genişler ve kaydırılabilir olur.
+    double dynamicMaxX = moistureData.isEmpty
+        ? 60
+        : moistureData.last.x;
+    double pixelsPerSecond =
+        150 / 60; // 60 saniye = 150 pixel
     double chartWidth =
-        moistureData.length * 50.0;
+        dynamicMaxX * pixelsPerSecond;
+
     double minWidth =
-        MediaQuery.of(context).size.width -
-        40; 
+        MediaQuery.of(context).size.width - 40;
     double finalWidth = chartWidth < minWidth
         ? minWidth
         : chartWidth;
 
-    double dynamicMinX = moistureData.isEmpty
-        ? 0
-        : moistureData.first.x;
-    double dynamicMaxX = moistureData.isEmpty
-        ? 10
-        : moistureData.last.x + 2;
-
-    double timeDifference =
-        dynamicMaxX - dynamicMinX;
-    double dynamicInterval = timeDifference > 120
-        ? 15
-        : 5;
+    // 2. X EKSENİ SINIRLARI
+    double dynamicMinX =
+        0; // Her zaman 0'dan başlasın ki geçmişi görebilelim
+    // Sağ tarafa 30 saniyelik bir "nefes alma" boşluğu ekleyelim
+    double maxXWithPadding = dynamicMaxX + 30;
 
     return Container(
       height: 280,
+      margin: const EdgeInsets.symmetric(
+        horizontal: 10,
+      ),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(15),
-        boxShadow: const [
+        boxShadow: [
           BoxShadow(
-            color: Colors.grey,
+            color: Colors.black.withOpacity(0.05),
             blurRadius: 10,
             spreadRadius: 2,
           ),
@@ -68,7 +66,6 @@ class MoistureChart extends StatelessWidget {
         crossAxisAlignment:
             CrossAxisAlignment.stretch,
         children: [
-          // ÜST BAŞLIK KISMI
           const Padding(
             padding: EdgeInsets.only(
               top: 20,
@@ -85,7 +82,7 @@ class MoistureChart extends StatelessWidget {
                 ),
                 SizedBox(width: 5),
                 Text(
-                  'SOIL MOISTURE',
+                  'TOPRAK NEM GEÇMİŞİ',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
@@ -95,30 +92,36 @@ class MoistureChart extends StatelessWidget {
               ],
             ),
           ),
-
           Expanded(
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
-              reverse:
-                  true,
+              // reverse: true kalsın, böylece her zaman en yeni veriye (sağa) odaklanır
+              reverse: true,
               child: Container(
-                width:
-                    finalWidth,
+                width: finalWidth,
                 padding: const EdgeInsets.only(
-                  right: 20,
+                  right: 30,
                   left: 10,
                   bottom: 10,
                 ),
                 child: LineChart(
                   LineChartData(
                     minX: dynamicMinX,
-                    maxX: dynamicMaxX,
+                    maxX: maxXWithPadding,
                     minY: 0,
                     maxY: 100,
-                    gridData: const FlGridData(
+                    gridData: FlGridData(
                       show: true,
-                      drawVerticalLine: false,
+                      drawVerticalLine: true,
                       horizontalInterval: 25,
+                      verticalInterval:
+                          60, // Izgara çizgileri de dakikada bir olsun
+                      getDrawingVerticalLine:
+                          (value) => FlLine(
+                            color: Colors.grey
+                                .withOpacity(0.1),
+                            strokeWidth: 1,
+                          ),
                     ),
                     titlesData: FlTitlesData(
                       show: true,
@@ -139,15 +142,13 @@ class MoistureChart extends StatelessWidget {
                         sideTitles: SideTitles(
                           showTitles: true,
                           interval: 25,
-                          reservedSize: 30,
+                          reservedSize: 35,
                           getTitlesWidget:
                               (
                                 value,
                                 meta,
                               ) => Text(
-                                value
-                                    .toInt()
-                                    .toString(),
+                                '%${value.toInt()}',
                                 style:
                                     const TextStyle(
                                       color: Colors
@@ -162,27 +163,27 @@ class MoistureChart extends StatelessWidget {
                         sideTitles: SideTitles(
                           showTitles: true,
                           interval:
-                              dynamicInterval,
-                          getTitlesWidget:
-                              (
-                                value,
-                                meta,
-                              ) => Padding(
-                                padding:
-                                    const EdgeInsets.only(
-                                      top: 8.0,
-                                    ),
-                                child: Text(
-                                  _formatTime(
-                                    value.toInt(),
+                              60, // Sadece 60 saniyede bir etiket koy (1dk, 2dk...)
+                          getTitlesWidget: (value, meta) {
+                            return Padding(
+                              padding:
+                                  const EdgeInsets.only(
+                                    top: 8.0,
                                   ),
-                                  style: const TextStyle(
-                                    color: Colors
-                                        .grey,
-                                    fontSize: 10,
-                                  ),
+                              child: Text(
+                                _formatTime(
+                                  value.toInt(),
                                 ),
+                                style:
+                                    const TextStyle(
+                                      color: Colors
+                                          .grey,
+                                      fontSize:
+                                          10,
+                                    ),
                               ),
+                            );
+                          },
                         ),
                       ),
                     ),
@@ -193,7 +194,7 @@ class MoistureChart extends StatelessWidget {
                       LineChartBarData(
                         spots:
                             moistureData.isEmpty
-                            ? const [FlSpot(0, 0)]
+                            ? [const FlSpot(0, 0)]
                             : moistureData,
                         isCurved: true,
                         color: const Color(
@@ -208,7 +209,7 @@ class MoistureChart extends StatelessWidget {
                           show: true,
                           color: const Color(
                             0xFF1ABC9C,
-                          ),
+                          ).withOpacity(0.1),
                         ),
                       ),
                     ],

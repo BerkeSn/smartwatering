@@ -127,7 +127,67 @@ class BlynkApiService {
   Future<void> sendWaterCommand(
     int amount,
   ) async {
+    final token = await _getToken();
+    if (token == null || token.isEmpty) return;
+
+    print(
+      "💧 [SİMÜLASYON] Sulama komutu tetiklendi: $amount mL",
+    );
+
+    // 1. Önce güncel durumu okuyalım (Sanki sensörden okuyormuşuz gibi)
+    int currentMoisture = await _getPinValue(
+      token,
+      "V100",
+    );
+    int currentWaterLevel = await _getPinValue(
+      token,
+      "V101",
+    );
+
+    if (currentWaterLevel < 10) {
+      // %10'un altındaysa
+      print(
+        "❌ [HATA] Su seviyesi çok düşük (%$currentWaterLevel), sulama yapılamaz!",
+      );
+      // Burada bir hata fırlatabiliriz ki UI tarafında SnackBar ile gösterelim
+      throw Exception(
+        "Yetersiz su seviyesi! Lütfen tankı doldur.",
+      );
+    }
+
+    // 2. Pompayı aç (V103 = 1) ve verilecek su miktarını yolla (V107)
     await updatePin("V103", 1);
     await updatePin("V107", amount);
+
+    // Sulama işlemi için 3 saniyelik bir gecikme simüle edelim (Pompa çalışıyor hissi)
+    await Future.delayed(
+      const Duration(seconds: 3),
+    );
+
+    // 3. MATEMATİKSEL SİMÜLASYON (Burası işin kalbi)
+    // Formül: Her 10 mL su, tankı %1 azaltsın ve toprağı %2 nemlendirsin.
+    // (Bu oranları kendi saksına göre ayarlayabilirsin kanka)
+    int waterDecrease = (amount / 10).round();
+    int moistureIncrease = (amount / 5).round();
+
+    // Yeni seviyeleri hesapla ve sınırları koru (0-100 arası)
+    int newWaterLevel =
+        currentWaterLevel - waterDecrease;
+    if (newWaterLevel < 0) newWaterLevel = 0;
+
+    int newMoisture =
+        currentMoisture + moistureIncrease;
+    if (newMoisture > 100) newMoisture = 100;
+
+    // 4. Yeni hesaplanan değerleri Blynk veri tabanına yaz
+    await updatePin("V101", newWaterLevel);
+    await updatePin("V100", newMoisture);
+
+    // 5. Pompayı kapat (V103 = 0)
+    await updatePin("V103", 0);
+
+    print(
+      "✅ [SİMÜLASYON] Tamamlandı! Yeni Su Tankı: %$newWaterLevel, Yeni Nem: %$newMoisture",
+    );
   }
 }
